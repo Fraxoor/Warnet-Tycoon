@@ -1,0 +1,6 @@
+{
+  "name": "Warnet Tycoon",
+  "description": "An isometric 3D Indonesian Internet Cafe management tycoon game — from two old PCs to a gaming empire.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

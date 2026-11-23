@@ -1,0 +1,134 @@
+{
+  "entities": {
+    "LeaderboardEntry": {
+      "title": "LeaderboardEntry",
+      "description": "Public zero-PII global leaderboard entry representing a player's Warnet Tycoon empire.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Authenticated Firebase user UID owning this entry.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "playerName": {
+          "type": "string",
+          "description": "Public display nickname shown on the leaderboard.",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "cafeName": {
+          "type": "string",
+          "description": "Player's custom internet cafe name.",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "score": {
+          "type": "number",
+          "description": "Composite Warnet Empire Score used for global ranking."
+        },
+        "balance": {
+          "type": "number",
+          "description": "Current cash balance in Indonesian Rupiah."
+        },
+        "reputation": {
+          "type": "number",
+          "description": "Star rating from 0.0 to 5.0."
+        },
+        "businessRating": {
+          "type": "number",
+          "description": "Overall business rating from 0 to 100."
+        },
+        "stage": {
+          "type": "number",
+          "description": "Progression stage from 1 to 5."
+        },
+        "pcCount": {
+          "type": "number",
+          "description": "Total active computer stations owned."
+        },
+        "day": {
+          "type": "number",
+          "description": "In-game day reached."
+        },
+        "totalCustomersServed": {
+          "type": "number",
+          "description": "Lifetime customers served."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the entry was first published."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the entry was last updated."
+        }
+      },
+      "required": [
+        "uid",
+        "playerName",
+        "cafeName",
+        "score",
+        "balance",
+        "reputation",
+        "businessRating",
+        "stage",
+        "pcCount",
+        "day",
+        "totalCustomersServed",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Owner-only Warnet Tycoon player preferences without PII.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Owner Firebase Auth UID.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Preferred player nickname.",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "cafeName": {
+          "type": "string",
+          "description": "Preferred warnet name.",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp."
+        }
+      },
+      "required": ["uid", "displayName", "cafeName", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/leaderboard/{entryId}": {
+      "schema": { "$ref": "#/entities/LeaderboardEntry" },
+      "description": "Global leaderboard scores keyed by owner UID. Strictly zero PII."
+    },
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Private owner-only profile preferences for saved cafe and player names."
+    }
+  }
+}
