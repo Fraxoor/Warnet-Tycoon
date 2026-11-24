@@ -2,14 +2,16 @@ import React, { useMemo, useState } from 'react';
 import {
   Award,
   Crown,
+  KeyRound,
   LogIn,
   LogOut,
   Send,
   Trash2,
   Trophy,
+  UserPlus,
   Users,
 } from 'lucide-react';
-import { useFirebaseLeaderboard } from '../firebase/FirebaseProvider';
+import { useSupabaseLeaderboard } from '../supabase/SupabaseProvider';
 import {
   LEADERBOARD_MAX_NAME_LENGTH,
   computeEmpireScore,
@@ -41,11 +43,18 @@ export const LeaderboardPanel: React.FC<{ allowPublish?: boolean }> = ({
     playerName,
     setCafeName,
     setPlayerName,
-    signIn,
+    signInWithUsername,
+    signUpWithUsername,
     signOut,
     publishScore,
     removeMyEntry,
-  } = useFirebaseLeaderboard();
+    refreshLeaderboard,
+  } = useSupabaseLeaderboard();
+
+  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
+  const [formUsername, setFormUsername] = useState('');
+  const [formPassword, setFormPassword] = useState('');
+  const [formCafeName, setFormCafeName] = useState('Warnet Nusantara');
 
   const [sortBy, setSortBy] = useState<SortMetric>('score');
 
@@ -68,14 +77,23 @@ export const LeaderboardPanel: React.FC<{ allowPublish?: boolean }> = ({
 
   const myRank = useMemo(() => {
     if (!user) return null;
-    const idx = sortedEntries.findIndex((e) => e.uid === user.uid);
+    const idx = sortedEntries.findIndex((e) => e.uid === user.id);
     return idx >= 0 ? idx + 1 : null;
   }, [sortedEntries, user]);
 
   const myEntry = useMemo(
-    () => (user ? entries.find((e) => e.uid === user.uid) ?? null : null),
+    () => (user ? entries.find((e) => e.uid === user.id) ?? null : null),
     [entries, user],
   );
+
+  const handleAuthSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (authMode === 'signin') {
+      await signInWithUsername(formUsername, formPassword);
+    } else {
+      await signUpWithUsername(formUsername, formPassword, formCafeName);
+    }
+  };
 
   const sortOptions: Array<{ id: SortMetric; label: string }> = [
     { id: 'score', label: 'Empire Score' },
@@ -88,6 +106,7 @@ export const LeaderboardPanel: React.FC<{ allowPublish?: boolean }> = ({
     <div className="space-y-4 text-xs" data-testid="leaderboard-panel">
       {/* Top Status & Current Run / Auth Controls */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+        {/* Current Run Card */}
         <div className="p-3.5 rounded-lg bg-slate-900/90 border border-white/10 space-y-2">
           <div className="flex items-center justify-between">
             <span className="font-bold text-sm text-amber-400 flex items-center gap-1.5">
@@ -118,32 +137,117 @@ export const LeaderboardPanel: React.FC<{ allowPublish?: boolean }> = ({
           </div>
         </div>
 
+        {/* Auth / Account Card */}
         <div className="lg:col-span-2 p-3.5 rounded-lg bg-slate-900/90 border border-white/10 flex flex-col justify-between gap-3">
           {!authReady ? (
-            <div className="text-slate-400 py-2">Connecting to Firebase Auth...</div>
+            <div className="text-slate-400 py-2">Connecting to Supabase...</div>
           ) : !user ? (
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <div className="font-bold text-sm text-white">
-                  Compete on the Global Leaderboard
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <div className="font-bold text-sm text-white flex items-center gap-1.5">
+                  <KeyRound className="w-4 h-4 text-amber-400" />
+                  Supabase Player Account
                 </div>
-                <p className="text-slate-400 mt-1 leading-relaxed">
-                  Sign in with Google to view worldwide Warnet Tycoon rankings, publish your
-                  cafe&apos;s Empire Score, and climb to #1.
-                </p>
-                {authError && (
-                  <p className="text-rose-400 mt-1.5 font-medium">{authError}</p>
-                )}
+                <div className="flex rounded bg-slate-950 p-0.5 border border-white/10">
+                  <button
+                    type="button"
+                    onClick={() => setAuthMode('signin')}
+                    className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-colors cursor-pointer ${
+                      authMode === 'signin'
+                        ? 'bg-amber-500 text-slate-950'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Sign In
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAuthMode('signup')}
+                    className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-colors cursor-pointer ${
+                      authMode === 'signup'
+                        ? 'bg-amber-500 text-slate-950'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Register
+                  </button>
+                </div>
               </div>
-              <button
-                type="button"
-                disabled={authBusy}
-                onClick={() => void signIn()}
-                className="px-4 py-2.5 rounded-lg bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-slate-950 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap shrink-0"
-              >
-                <LogIn className="w-4 h-4" />
-                {authBusy ? 'Signing In...' : 'Sign in with Google'}
-              </button>
+
+              <form onSubmit={handleAuthSubmit} className="space-y-2 mt-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[11px] text-slate-400 mb-0.5">
+                      Username
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={formUsername}
+                      onChange={(e) => setFormUsername(e.target.value)}
+                      placeholder="e.g. warnet_master"
+                      className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-white/15 text-white text-xs focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] text-slate-400 mb-0.5">
+                      Password
+                    </label>
+                    <input
+                      type="password"
+                      required
+                      value={formPassword}
+                      onChange={(e) => setFormPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-white/15 text-white text-xs focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
+                </div>
+
+                {authMode === 'signup' && (
+                  <div>
+                    <label className="block text-[11px] text-slate-400 mb-0.5">
+                      Cafe Name
+                    </label>
+                    <input
+                      type="text"
+                      value={formCafeName}
+                      onChange={(e) => setFormCafeName(e.target.value)}
+                      placeholder="Warnet Nusantara"
+                      className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-white/15 text-white text-xs focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
+                )}
+
+                {authError && (
+                  <p className="text-rose-400 text-[11px] font-medium">{authError}</p>
+                )}
+
+                <div className="flex items-center justify-between pt-1">
+                  <span className="text-[11px] text-slate-400">
+                    {authMode === 'signin'
+                      ? 'No account? Switch to Register above.'
+                      : 'Free registration, no email verification needed.'}
+                  </span>
+                  <button
+                    type="submit"
+                    disabled={authBusy}
+                    className="px-4 py-1.5 rounded bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-slate-950 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+                  >
+                    {authMode === 'signin' ? (
+                      <>
+                        <LogIn className="w-3.5 h-3.5" />
+                        {authBusy ? 'Signing in...' : 'Sign In'}
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus className="w-3.5 h-3.5" />
+                        {authBusy ? 'Creating Account...' : 'Register'}
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
             </div>
           ) : (
             <div className="space-y-3">
@@ -151,8 +255,9 @@ export const LeaderboardPanel: React.FC<{ allowPublish?: boolean }> = ({
                 <div className="flex items-center gap-2 min-w-0">
                   <Award className="w-4 h-4 text-amber-400 shrink-0" />
                   <span className="font-bold text-white truncate">
-                    {user.displayName || 'Verified Owner'}
+                    @{user.username}
                   </span>
+                  <span className="text-slate-400 text-[11px]">({user.cafeName})</span>
                   {myRank !== null && (
                     <span className="px-2 py-0.5 rounded bg-amber-500/20 border border-amber-400/40 text-amber-300 font-mono-num font-bold">
                       Rank #{myRank}
@@ -194,7 +299,7 @@ export const LeaderboardPanel: React.FC<{ allowPublish?: boolean }> = ({
                       maxLength={LEADERBOARD_MAX_NAME_LENGTH}
                       value={playerName}
                       onChange={(e) => setPlayerName(e.target.value)}
-                      placeholder={user.displayName || 'Owner'}
+                      placeholder={user.username || 'Owner'}
                       className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-white/15 text-white text-xs focus:outline-none focus:border-amber-400"
                     />
                   </label>
@@ -202,7 +307,7 @@ export const LeaderboardPanel: React.FC<{ allowPublish?: boolean }> = ({
                     <button
                       type="button"
                       disabled={submitting}
-                      onClick={() => void publishScore(sim, false)}
+                      onClick={() => void publishScore(sim)}
                       className="px-3.5 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white font-bold flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
                     >
                       <Send className="w-3.5 h-3.5" />
@@ -235,18 +340,6 @@ export const LeaderboardPanel: React.FC<{ allowPublish?: boolean }> = ({
                   }`}
                 >
                   <span>{submitFeedback.text}</span>
-                  {submitFeedback.tone === 'warn' &&
-                    myEntry &&
-                    myEntry.score > currentScore && (
-                      <button
-                        type="button"
-                        disabled={submitting}
-                        onClick={() => void publishScore(sim, true)}
-                        className="px-2 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-amber-200 font-bold cursor-pointer"
-                      >
-                        Overwrite Anyway
-                      </button>
-                    )}
                 </div>
               )}
             </div>
@@ -255,111 +348,147 @@ export const LeaderboardPanel: React.FC<{ allowPublish?: boolean }> = ({
       </div>
 
       {/* Global Top 50 Table */}
-      {user && (
-        <div className="rounded-lg bg-slate-900/90 border border-white/10 overflow-hidden">
-          <div className="px-3.5 py-2.5 border-b border-white/10 flex flex-wrap items-center justify-between gap-2">
-            <div className="font-bold text-slate-200 flex items-center gap-1.5">
-              <Users className="w-4 h-4 text-sky-400" />
-              Global Rankings (Top 50)
-            </div>
-            <div className="flex flex-wrap items-center gap-1">
-              {sortOptions.map((opt) => (
-                <button
-                  key={opt.id}
-                  type="button"
-                  onClick={() => setSortBy(opt.id)}
-                  className={`px-2.5 py-1 rounded text-[11px] font-semibold cursor-pointer ${
-                    sortBy === opt.id
-                      ? 'bg-amber-500 text-slate-950'
-                      : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
+      <div className="rounded-lg bg-slate-900/90 border border-white/10 overflow-hidden">
+        <div className="px-3.5 py-2.5 border-b border-white/10 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Crown className="w-4 h-4 text-amber-400" />
+            <span className="font-bold text-sm text-white">Global Empire Rankings</span>
+            <span className="text-slate-400 text-[11px]">(Supabase Cloud DB)</span>
           </div>
 
-          {leaderboardError ? (
-            <div className="p-4 text-rose-400">{leaderboardError}</div>
-          ) : loadingLeaderboard ? (
-            <div className="p-4 text-slate-400">Loading global rankings...</div>
-          ) : sortedEntries.length === 0 ? (
-            <div className="p-4 text-slate-400">
-              No scores published yet. Be the first Warnet Tycoon on the board!
-            </div>
-          ) : (
-            <div className="overflow-x-auto max-h-60 overflow-y-auto warnet-scroll">
-              <table className="w-full text-left border-collapse">
-                <thead className="sticky top-0 bg-slate-950 text-[11px] uppercase tracking-wider text-slate-400 border-b border-white/10">
-                  <tr>
-                    <th className="py-2 px-3">Rank</th>
-                    <th className="py-2 px-3">Warnet & Owner</th>
-                    <th className="py-2 px-3 text-right">Empire Score</th>
-                    <th className="py-2 px-3 text-right">Balance</th>
-                    <th className="py-2 px-3 text-right">Stage · PCs</th>
-                    <th className="py-2 px-3 text-right">Rating</th>
-                    <th className="py-2 px-3 text-right">Served</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5 font-mono-num">
-                  {sortedEntries.map((entry, index) => {
-                    const rank = index + 1;
-                    const isMe = entry.uid === user.uid;
-                    return (
-                      <tr
-                        key={entry.uid}
-                        className={
-                          isMe
-                            ? 'bg-amber-500/15 text-amber-100'
-                            : 'hover:bg-slate-800/50 text-slate-200'
-                        }
-                      >
-                        <td className="py-2 px-3 font-bold">
-                          <span className="inline-flex items-center gap-1">
-                            {rank === 1 && <Crown className="w-3.5 h-3.5 text-amber-400" />}
-                            {rank === 2 && <Crown className="w-3.5 h-3.5 text-slate-300" />}
-                            {rank === 3 && <Crown className="w-3.5 h-3.5 text-amber-700" />}
-                            #{rank}
-                          </span>
-                        </td>
-                        <td className="py-2 px-3 font-sans">
-                          <div className="font-bold text-white truncate max-w-[180px]">
-                            {entry.cafeName}
-                            {isMe && (
-                              <span className="ml-1.5 text-[10px] uppercase text-amber-400">
-                                (You)
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-[11px] text-slate-400 truncate max-w-[180px]">
-                            {entry.playerName} · Day {entry.day}
-                          </div>
-                        </td>
-                        <td className="py-2 px-3 text-right font-bold text-amber-300">
-                          {entry.score.toLocaleString('id-ID')}
-                        </td>
-                        <td className="py-2 px-3 text-right">
-                          {formatRupiah(entry.balance)}
-                        </td>
-                        <td className="py-2 px-3 text-right">
-                          S{entry.stage} · {entry.pcCount} PCs
-                        </td>
-                        <td className="py-2 px-3 text-right">
-                          {entry.businessRating}/100 (★{entry.reputation.toFixed(1)})
-                        </td>
-                        <td className="py-2 px-3 text-right">
-                          {entry.totalCustomersServed}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] text-slate-400 mr-1">Sort By:</span>
+            {sortOptions.map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setSortBy(opt.id)}
+                className={`px-2 py-1 rounded text-[11px] font-semibold transition-colors cursor-pointer ${
+                  sortBy === opt.id
+                    ? 'bg-amber-500 text-slate-950'
+                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => void refreshLeaderboard()}
+              className="ml-2 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-semibold cursor-pointer"
+            >
+              Refresh
+            </button>
+          </div>
         </div>
-      )}
+
+        {loadingLeaderboard && entries.length === 0 ? (
+          <div className="p-8 text-center text-slate-400">Loading rankings from Supabase...</div>
+        ) : leaderboardError ? (
+          <div className="p-6 text-center text-rose-400 space-y-1">
+            <p className="font-semibold">{leaderboardError}</p>
+            <button
+              type="button"
+              onClick={() => void refreshLeaderboard()}
+              className="mt-2 px-3 py-1 rounded bg-slate-800 text-white text-xs cursor-pointer"
+            >
+              Retry
+            </button>
+          </div>
+        ) : entries.length === 0 ? (
+          <div className="p-8 text-center text-slate-400 space-y-1">
+            <Trophy className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+            <p className="font-semibold text-slate-300">No scores published yet.</p>
+            <p className="text-[11px]">
+              {user
+                ? 'Click "Publish Score" above to claim the #1 spot on the leaderboard!'
+                : 'Sign in with your username above to publish your empire!'}
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-white/5 text-[11px] text-slate-400 font-semibold bg-slate-950/40">
+                  <th className="py-2 px-3 w-12 text-center">Rank</th>
+                  <th className="py-2 px-3">Cafe & Owner</th>
+                  <th className="py-2 px-3 text-right">Empire Score</th>
+                  <th className="py-2 px-3 text-right">Cash Balance</th>
+                  <th className="py-2 px-3 text-center">PCs</th>
+                  <th className="py-2 px-3 text-center">Rating</th>
+                  <th className="py-2 px-3 text-center">Day</th>
+                  <th className="py-2 px-3 text-right">Customers</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {sortedEntries.map((e, index) => {
+                  const isMe = user?.id === e.uid;
+                  const rank = index + 1;
+                  return (
+                    <tr
+                      key={e.uid}
+                      className={`transition-colors ${
+                        isMe
+                          ? 'bg-amber-500/10 font-medium'
+                          : index % 2 === 0
+                            ? 'bg-transparent'
+                            : 'bg-white/[0.02]'
+                      } hover:bg-white/[0.04]`}
+                    >
+                      <td className="py-2.5 px-3 text-center font-mono-num">
+                        {rank === 1 ? (
+                          <span className="text-amber-400 font-bold flex items-center justify-center gap-1">
+                            🥇 #1
+                          </span>
+                        ) : rank === 2 ? (
+                          <span className="text-slate-300 font-bold flex items-center justify-center gap-1">
+                            🥈 #2
+                          </span>
+                        ) : rank === 3 ? (
+                          <span className="text-amber-600 font-bold flex items-center justify-center gap-1">
+                            🥉 #3
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">#{rank}</span>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <div className="font-bold text-white flex items-center gap-1.5">
+                          {e.cafeName}
+                          {isMe && (
+                            <span className="px-1.5 py-0.2 rounded bg-amber-500/30 text-amber-300 text-[10px]">
+                              YOU
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[11px] text-slate-400">Owner: @{e.playerName}</div>
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-mono-num font-bold text-amber-400">
+                        {e.score.toLocaleString('id-ID')}
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-mono-num text-slate-200">
+                        {formatRupiah(e.balance)}
+                      </td>
+                      <td className="py-2.5 px-3 text-center font-mono-num text-slate-300">
+                        {e.pcCount}
+                      </td>
+                      <td className="py-2.5 px-3 text-center font-mono-num text-slate-300">
+                        {e.businessRating}/100
+                      </td>
+                      <td className="py-2.5 px-3 text-center font-mono-num text-slate-300">
+                        {e.day}
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-mono-num text-slate-300">
+                        {e.totalCustomersServed.toLocaleString('id-ID')}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

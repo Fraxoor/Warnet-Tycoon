@@ -43,6 +43,8 @@ import {
 } from '../simulation/economy';
 import { getDiscountedCost } from '../simulation/engine';
 import { SAVE_SLOT_IDS } from '../storage/saveSystem';
+import { useSupabaseLeaderboard } from '../supabase/SupabaseProvider';
+import type { SimulationState } from '../types/game';
 import type {
   CatalogItemType,
   CustomerArchetype,
@@ -1112,78 +1114,210 @@ export const SavePanel: React.FC = () => {
   const saveToSlot = useGameStore((s) => s.saveToSlot);
   const loadFromSlot = useGameStore((s) => s.loadFromSlot);
   const deleteSlot = useGameStore((s) => s.deleteSlot);
+  const sim = useGameStore((s) => s.sim);
+
+  const {
+    user,
+    cloudSaves,
+    loadingCloudSaves,
+    submitFeedback,
+    uploadCloudSave,
+    removeCloudSave,
+  } = useSupabaseLeaderboard();
+
+  const CLOUD_SLOT_IDS = ['cloud_1', 'cloud_2', 'cloud_3'] as const;
+
+  const handleCloudSave = async (slotId: string) => {
+    const label = `Cloud Slot ${slotId.split('_')[1]} — Day ${sim.day}`;
+    await uploadCloudSave(slotId, label, sim);
+  };
+
+  const handleCloudLoad = async (slotId: string) => {
+    const found = cloudSaves.find((s) => s.slotId === slotId);
+    if (!found) return;
+    // Load the game state directly into store
+    const { normalizeSimulationState } = await import('../simulation/engine');
+    const { soundEngine } = await import('../audio/soundEngine');
+    const normalized = normalizeSimulationState(found.gameData as SimulationState);
+    soundEngine.unlockAndStart();
+    document.body.dataset.state = 'playing';
+    useGameStore.setState({
+      sim: normalized,
+      screenState: 'playing',
+      speed: 1,
+      activeTab: null,
+      buildItem: null,
+      selectedObjectId: null,
+      endlessContinued: normalized.gameWon,
+      lastSaveMessage: `Loaded Cloud Save — Day ${found.day}`,
+    });
+  };
 
   return (
-    <div className="space-y-3 text-xs">
-      <div className="flex items-center justify-between">
-        <div className="text-slate-300">
-          Automatic saves run every new morning. Use manual slots anytime.
+    <div className="space-y-5 text-xs">
+      {/* Local Save Slots */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <div className="font-bold text-sm text-white">📁 Local Saves</div>
+          {lastSaveMessage && <div className="text-emerald-400 font-semibold">{lastSaveMessage}</div>}
         </div>
-        {lastSaveMessage && <div className="text-emerald-400 font-semibold">{lastSaveMessage}</div>}
+        <div className="text-[11px] text-slate-400 mb-3">
+          Auto-saves daily. Manual slots persist in your browser's storage.
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {SAVE_SLOT_IDS.map((slotId) => {
+            const meta = saveSlots.find((s) => s.slotId === slotId);
+            return (
+              <div
+                key={slotId}
+                className="p-3 rounded-lg bg-slate-900/90 border border-white/10 flex flex-col justify-between gap-3"
+              >
+                <div>
+                  <div className="font-bold text-sm text-white uppercase tracking-wide">
+                    {slotId === 'autosave' ? '🔄 Auto Save' : slotId.replace('_', ' ')}
+                  </div>
+                  {meta ? (
+                    <div className="mt-1 space-y-0.5 text-slate-300 font-mono-num">
+                      <div>Day {meta.day} · Stage {meta.stage}</div>
+                      <div className="text-amber-400 font-bold">{formatRupiah(meta.balance)}</div>
+                      <div className="text-[11px] text-slate-400">
+                        {meta.pcCount} PCs · {new Date(meta.savedAt).toLocaleTimeString()}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-2 text-slate-500">Empty Slot</div>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  {slotId !== 'autosave' && (
+                    <button
+                      type="button"
+                      onClick={() => void saveToSlot(slotId)}
+                      className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold cursor-pointer"
+                    >
+                      <Save className="w-3.5 h-3.5" />
+                      Save
+                    </button>
+                  )}
+                  {meta && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => void loadFromSlot(slotId)}
+                        className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded bg-sky-600 hover:bg-sky-500 text-white font-semibold cursor-pointer"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        Load
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Delete ${slotId}`}
+                        onClick={() => void deleteSlot(slotId)}
+                        className="p-1.5 rounded bg-slate-800 hover:bg-rose-900/70 text-slate-300 cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        {SAVE_SLOT_IDS.map((slotId) => {
-          const meta = saveSlots.find((s) => s.slotId === slotId);
-          return (
-            <div
-              key={slotId}
-              className="p-3 rounded-lg bg-slate-900/90 border border-white/10 flex flex-col justify-between gap-3"
-            >
-              <div>
-                <div className="font-bold text-sm text-white uppercase tracking-wide">
-                  {slotId === 'autosave' ? 'Auto Save' : slotId.replace('_', ' ')}
-                </div>
-                {meta ? (
-                  <div className="mt-1 space-y-0.5 text-slate-300 font-mono-num">
-                    <div>
-                      Day {meta.day} · Stage {meta.stage}
-                    </div>
-                    <div className="text-amber-400 font-bold">{formatRupiah(meta.balance)}</div>
-                    <div className="text-[11px] text-slate-400">
-                      {meta.pcCount} PCs · {new Date(meta.savedAt).toLocaleTimeString()}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="mt-2 text-slate-500">Empty Slot</div>
-                )}
-              </div>
-
-              <div className="flex items-center gap-1.5">
-                {slotId !== 'autosave' && (
-                  <button
-                    type="button"
-                    onClick={() => void saveToSlot(slotId)}
-                    className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold cursor-pointer"
-                  >
-                    <Save className="w-3.5 h-3.5" />
-                    Save
-                  </button>
-                )}
-                {meta && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => void loadFromSlot(slotId)}
-                      className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded bg-sky-600 hover:bg-sky-500 text-white font-semibold cursor-pointer"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      Load
-                    </button>
-                    <button
-                      type="button"
-                      aria-label={`Delete ${slotId}`}
-                      onClick={() => void deleteSlot(slotId)}
-                      className="p-1.5 rounded bg-slate-800 hover:bg-rose-900/70 text-slate-300 cursor-pointer"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </>
-                )}
-              </div>
+      {/* Cloud Save Slots (Supabase) */}
+      <div className="border-t border-white/10 pt-4">
+        <div className="flex items-center justify-between mb-2">
+          <div className="font-bold text-sm text-white">☁️ Cloud Saves (Supabase)</div>
+          {submitFeedback && (
+            <div className={`text-[11px] font-semibold ${
+              submitFeedback.tone === 'good' ? 'text-emerald-400'
+              : submitFeedback.tone === 'bad' ? 'text-rose-400'
+              : 'text-amber-300'
+            }`}>
+              {submitFeedback.text}
             </div>
-          );
-        })}
+          )}
+        </div>
+
+        {!user ? (
+          <div className="p-4 rounded-lg bg-slate-900/70 border border-white/10 text-center text-slate-400 space-y-1">
+            <div>🔒 Sign in to access cloud saves.</div>
+            <div className="text-[11px]">Use the Leaderboard tab to register or log in with your username.</div>
+          </div>
+        ) : (
+          <>
+            <div className="text-[11px] text-slate-400 mb-3">
+              Signed in as <span className="text-amber-400 font-semibold">@{user.username}</span> · Cloud saves sync to Supabase.
+            </div>
+            {loadingCloudSaves ? (
+              <div className="text-slate-400 py-4 text-center">Loading cloud saves...</div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {CLOUD_SLOT_IDS.map((slotId) => {
+                  const cloud = cloudSaves.find((s) => s.slotId === slotId);
+                  return (
+                    <div
+                      key={slotId}
+                      className="p-3 rounded-lg bg-indigo-950/60 border border-indigo-500/30 flex flex-col justify-between gap-3"
+                    >
+                      <div>
+                        <div className="font-bold text-sm text-indigo-200 uppercase tracking-wide">
+                          ☁ Cloud {slotId.split('_')[1]}
+                        </div>
+                        {cloud ? (
+                          <div className="mt-1 space-y-0.5 text-slate-300 font-mono-num">
+                            <div>Day {cloud.day} · Stage {cloud.stage}</div>
+                            <div className="text-amber-400 font-bold">{formatRupiah(cloud.balance)}</div>
+                            <div className="text-[11px] text-slate-400">
+                              {cloud.pcCount} PCs · {new Date(cloud.updatedAt).toLocaleString()}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="mt-2 text-slate-500">Empty Slot</div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => void handleCloudSave(slotId)}
+                          className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-bold cursor-pointer"
+                        >
+                          <Save className="w-3.5 h-3.5" />
+                          Upload
+                        </button>
+                        {cloud && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => void handleCloudLoad(slotId)}
+                              className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded bg-sky-600 hover:bg-sky-500 text-white font-semibold cursor-pointer"
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                              Load
+                            </button>
+                            <button
+                              type="button"
+                              aria-label={`Delete cloud save ${slotId}`}
+                              onClick={() => void removeCloudSave(slotId)}
+                              className="p-1.5 rounded bg-slate-800 hover:bg-rose-900/70 text-slate-300 cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   );

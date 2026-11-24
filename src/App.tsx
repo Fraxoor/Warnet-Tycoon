@@ -7,7 +7,7 @@ import { ObjectInspector } from './components/ObjectInspector';
 import { BottomDock } from './components/BottomDock';
 import { EventModal, StatusModal } from './components/Modals';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { FirebaseProvider } from './firebase/FirebaseProvider';
+import { SupabaseProvider } from './supabase/SupabaseProvider';
 
 export default function App() {
   const screenState = useGameStore((s) => s.screenState);
@@ -51,7 +51,7 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      <FirebaseProvider>
+      <SupabaseProvider>
         <main className="relative w-full h-full overflow-hidden select-none">
           {/* Isolated 3D Isometric Warnet World */}
           <WarnetScene />
@@ -93,7 +93,7 @@ export default function App() {
           <EventModal />
           <StatusModal />
         </main>
-      </FirebaseProvider>
+      </SupabaseProvider>
     </ErrorBoundary>
   );
 }
