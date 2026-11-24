@@ -1,59 +1,125 @@
-import React, { useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
-import type { CustomerActivity, CustomerEntity, StaffMember } from '../../types/game';
+import { useAnimations, useGLTF } from '@react-three/drei';
+import { SkeletonUtils } from 'three/addons/utils/SkeletonUtils.js';
+import type { CustomerEntity, StaffMember } from '../../types/game';
 import { getTileElevation } from '../../simulation/grid';
 import { createContactShadowTexture } from '../textures';
 
-interface CharacterProps {
+const KENNEY_BASE = 'https://cdn.jsdelivr.net/gh/Hidencod/tge-assets@main/packs/mini-characters/';
+const CHARACTER_MODELS = [
+  'character-female-a.glb',
+  'character-female-b.glb',
+  'character-female-c.glb',
+  'character-female-d.glb',
+  'character-female-e.glb',
+  'character-female-f.glb',
+  'character-male-a.glb',
+  'character-male-b.glb',
+  'character-male-c.glb',
+  'character-male-d.glb',
+  'character-male-e.glb',
+  'character-male-f.glb',
+] as const;
+
+type AnimationMode = 'walk' | 'idle' | 'sit' | 'work' | 'drink';
+
+function stableVariant(id: string): number {
+  let hash = 2166136261;
+  for (let i = 0; i < id.length; i++) {
+    hash ^= id.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0) % CHARACTER_MODELS.length;
+}
+
+function animationCandidates(mode: AnimationMode): string[] {
+  switch (mode) {
+    case 'walk':
+      return ['walk', 'walking', 'move'];
+    case 'sit':
+      return ['sit', 'sitting', 'idle', 'stand'];
+    case 'work':
+      return ['type', 'typing', 'work', 'computer', 'idle', 'stand'];
+    case 'drink':
+      return ['drink', 'idle', 'stand'];
+    default:
+      return ['idle', 'stand', 'breath'];
+  }
+}
+
+interface KenneyPersonProps {
   id: string;
   x: number;
   z: number;
   facing: number;
-  shirtColor: number;
-  pantsColor: number;
-  hairColor: number;
-  skinColor: number;
-  walkDistance: number;
-  isSitting: boolean;
-  isWorking: boolean;
-  activity?: CustomerActivity;
+  mode: AnimationMode;
+  isChatting?: boolean;
   accentBadgeColor?: number;
 }
 
-export const StylizedPerson: React.FC<CharacterProps> = ({
+const KenneyPerson: React.FC<KenneyPersonProps> = ({
+  id,
   x,
   z,
   facing,
-  shirtColor,
-  pantsColor,
-  hairColor,
-  skinColor,
-  walkDistance,
-  isSitting,
-  isWorking,
-  activity = 'idle',
+  mode,
+  isChatting = false,
   accentBadgeColor,
 }) => {
   const rootRef = useRef<THREE.Group>(null);
-  const leftLegRef = useRef<THREE.Mesh>(null);
-  const rightLegRef = useRef<THREE.Mesh>(null);
-  const leftArmRef = useRef<THREE.Mesh>(null);
-  const rightArmRef = useRef<THREE.Mesh>(null);
-  const headRef = useRef<THREE.Group>(null);
-  const bodyRef = useRef<THREE.Group>(null);
-  const cupRef = useRef<THREE.Mesh>(null);
-  const seatBlendRef = useRef(isSitting ? 1 : 0);
+  const animationRootRef = useRef<THREE.Group>(null);
   const smoothPosRef = useRef<{ x: number; y: number; z: number } | null>(null);
-
   const shadowTex = useMemo(() => createContactShadowTexture(), []);
+  const modelUrl = KENNEY_BASE + CHARACTER_MODELS[stableVariant(id)];
+  const gltf = useGLTF(modelUrl) as unknown as {
+    scene: THREE.Group;
+    animations: THREE.AnimationClip[];
+  };
 
-  useFrame(({ clock }, rawDelta) => {
+  const normalizedModel = useMemo(() => {
+    const model = SkeletonUtils.clone(gltf.scene) as THREE.Group;
+    model.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        child.castShadow = false;
+        child.receiveShadow = false;
+      }
+    });
+
+    const bounds = new THREE.Box3().setFromObject(model);
+    const size = new THREE.Vector3();
+    const center = new THREE.Vector3();
+    bounds.getSize(size);
+    bounds.getCenter(center);
+    const height = Math.max(size.y, 0.001);
+    model.position.set(-center.x, -bounds.min.y, -center.z);
+
+    return { model, scale: 1.16 / height };
+  }, [gltf.scene]);
+
+  const { actions, names } = useAnimations(gltf.animations, animationRootRef);
+
+  useEffect(() => {
+    const candidates = animationCandidates(mode);
+    const selectedName =
+      candidates
+        .map((candidate) => names.find((name) => name.toLowerCase().includes(candidate)))
+        .find((name): name is string => Boolean(name)) ?? names[0];
+
+    const action = selectedName ? actions[selectedName] : null;
+    if (!action) return;
+
+    action.reset().fadeIn(0.18).play();
+    return () => {
+      action.fadeOut(0.14);
+    };
+  }, [actions, names, mode]);
+
+  useFrame((_, rawDelta) => {
     const dt = Math.min(rawDelta, 0.05);
-    const t = clock.getElapsedTime();
     const targetY = getTileElevation(x, z);
 
-    // Smooth world position + vertical stair elevation transition
     if (!smoothPosRef.current) {
       smoothPosRef.current = { x, y: targetY, z };
     } else {
@@ -62,180 +128,46 @@ export const StylizedPerson: React.FC<CharacterProps> = ({
       smoothPosRef.current.y = THREE.MathUtils.lerp(smoothPosRef.current.y, targetY, alpha);
       smoothPosRef.current.z = THREE.MathUtils.lerp(smoothPosRef.current.z, z, alpha);
     }
-    if (rootRef.current) {
-      rootRef.current.position.set(
-        smoothPosRef.current.x,
-        smoothPosRef.current.y,
-        smoothPosRef.current.z,
-      );
-    }
 
-    // Smooth walking <-> sitting posture blend
-    seatBlendRef.current = THREE.MathUtils.lerp(
-      seatBlendRef.current,
-      isSitting ? 1 : 0,
-      Math.min(1, dt * 10),
+    rootRef.current?.position.set(
+      smoothPosRef.current.x,
+      smoothPosRef.current.y,
+      smoothPosRef.current.z,
     );
-    const sb = seatBlendRef.current;
-
-    if (sb > 0.45) {
-      if (bodyRef.current) {
-        bodyRef.current.position.y = THREE.MathUtils.lerp(0, 0.22, sb);
-      }
-      if (leftLegRef.current && rightLegRef.current) {
-        leftLegRef.current.rotation.x = THREE.MathUtils.lerp(0, -Math.PI / 2.2, sb);
-        rightLegRef.current.rotation.x = THREE.MathUtils.lerp(0, -Math.PI / 2.2, sb);
-      }
-
-      if (leftArmRef.current && rightArmRef.current) {
-        if (activity === 'mouse') {
-          // Left hand on WASD, right hand sweeps mouse laterally
-          leftArmRef.current.rotation.x = -0.92;
-          leftArmRef.current.rotation.z = 0;
-          rightArmRef.current.rotation.x = -0.95;
-          rightArmRef.current.rotation.z = Math.sin(t * 5.2) * 0.18;
-        } else if (activity === 'drinking') {
-          // Right arm lifts iced drink cup to mouth
-          leftArmRef.current.rotation.x = -0.35;
-          leftArmRef.current.rotation.z = 0;
-          rightArmRef.current.rotation.x = -1.65 + Math.sin(t * 3.5) * 0.14;
-          rightArmRef.current.rotation.z = 0.16;
-        } else if (activity === 'idle') {
-          // Relaxed stretch / breathing while watching cutscene
-          leftArmRef.current.rotation.x = -0.32 + Math.sin(t * 2) * 0.06;
-          rightArmRef.current.rotation.x = -0.32 + Math.cos(t * 2) * 0.06;
-          leftArmRef.current.rotation.z = 0.05;
-          rightArmRef.current.rotation.z = -0.05;
-        } else {
-          // Fast mechanical keyboard typing
-          leftArmRef.current.rotation.x = -0.9 + Math.sin(t * 14) * 0.14;
-          rightArmRef.current.rotation.x = -0.9 + Math.cos(t * 14) * 0.14;
-          leftArmRef.current.rotation.z = 0;
-          rightArmRef.current.rotation.z = 0;
-        }
-      }
-
-      if (headRef.current) {
-        headRef.current.rotation.x = activity === 'drinking' ? -0.18 : 0.04;
-        headRef.current.rotation.y = activity === 'idle' ? Math.sin(t * 1.4) * 0.18 : Math.sin(t * 2.2) * 0.06;
-      }
-      if (cupRef.current) {
-        cupRef.current.visible = activity === 'drinking';
-      }
-    } else {
-      const swing = Math.sin(walkDistance * 6.5) * 0.48;
-      if (bodyRef.current) {
-        bodyRef.current.position.y = Math.abs(Math.sin(walkDistance * 6.5)) * 0.035;
-      }
-      if (leftLegRef.current && rightLegRef.current) {
-        leftLegRef.current.rotation.x = swing;
-        rightLegRef.current.rotation.x = -swing;
-      }
-      if (leftArmRef.current && rightArmRef.current) {
-        leftArmRef.current.rotation.z = 0;
-        rightArmRef.current.rotation.z = 0;
-        if (isWorking) {
-          leftArmRef.current.rotation.x = -0.7 + Math.sin(t * 6) * 0.2;
-          rightArmRef.current.rotation.x = -0.7 + Math.cos(t * 6) * 0.2;
-        } else if (activity === 'chatting') {
-          leftArmRef.current.rotation.x = -0.35 + Math.sin(t * 5) * 0.22;
-          rightArmRef.current.rotation.x = -0.45 + Math.cos(t * 5) * 0.26;
-        } else {
-          leftArmRef.current.rotation.x = -swing * 0.7;
-          rightArmRef.current.rotation.x = swing * 0.7;
-        }
-      }
-      if (headRef.current) {
-        headRef.current.rotation.x = 0;
-        headRef.current.rotation.y =
-          activity === 'chatting' ? Math.sin(t * 3.4) * 0.26 : Math.sin(t * 1.1) * 0.08;
-      }
-      if (cupRef.current) {
-        cupRef.current.visible = false;
-      }
-    }
   });
 
   return (
     <group ref={rootRef} position={[x, getTileElevation(x, z), z]}>
-      {/* Grounded soft radial contact shadow */}
       <mesh position={[0, 0.015, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <circleGeometry args={[0.3, 16]} />
-        <meshBasicMaterial map={shadowTex} transparent opacity={0.45} depthWrite={false} />
+        <meshBasicMaterial map={shadowTex} transparent opacity={0.4} depthWrite={false} />
       </mesh>
 
-      <group ref={bodyRef} rotation={[0, facing, 0]}>
-        {/* Legs */}
-        <mesh ref={leftLegRef} position={[-0.08, 0.28, 0]}>
-          <boxGeometry args={[0.11, 0.42, 0.12]} />
-          <meshStandardMaterial color={pantsColor} roughness={0.8} />
-        </mesh>
-        <mesh ref={rightLegRef} position={[0.08, 0.28, 0]}>
-          <boxGeometry args={[0.11, 0.42, 0.12]} />
-          <meshStandardMaterial color={pantsColor} roughness={0.8} />
-        </mesh>
-
-        {/* Torso / Shirt */}
-        <mesh position={[0, 0.68, 0]}>
-          <boxGeometry args={[0.3, 0.42, 0.18]} />
-          <meshStandardMaterial color={shirtColor} roughness={0.7} />
-        </mesh>
+      <group ref={animationRootRef} rotation={[0, facing, 0]}>
+        <group scale={normalizedModel.scale}>
+          <primitive object={normalizedModel.model} />
+        </group>
 
         {accentBadgeColor !== undefined && (
-          <mesh position={[0, 0.7, 0.095]}>
-            <boxGeometry args={[0.24, 0.26, 0.02]} />
-            <meshStandardMaterial color={accentBadgeColor} roughness={0.5} />
+          <mesh position={[0, 0.82, 0.15]}>
+            <boxGeometry args={[0.12, 0.12, 0.035]} />
+            <meshStandardMaterial color={accentBadgeColor} roughness={0.55} />
           </mesh>
         )}
-
-        {/* Arms */}
-        <mesh ref={leftArmRef} position={[-0.2, 0.66, 0]}>
-          <boxGeometry args={[0.09, 0.36, 0.1]} />
-          <meshStandardMaterial color={shirtColor} roughness={0.72} />
-        </mesh>
-        <mesh ref={rightArmRef} position={[0.2, 0.66, 0]}>
-          <boxGeometry args={[0.09, 0.36, 0.1]} />
-          <meshStandardMaterial color={shirtColor} roughness={0.72} />
-        </mesh>
-
-        {/* Drink Cup held near face when sipping */}
-        <mesh ref={cupRef} visible={false} position={[0.14, 0.94, 0.22]}>
-          <cylinderGeometry args={[0.04, 0.032, 0.11, 8]} />
-          <meshStandardMaterial color={0x38bdf8} roughness={0.25} />
-        </mesh>
-
-        {/* Head & Hair */}
-        <group ref={headRef} position={[0, 1.04, 0]}>
-          <mesh>
-            <boxGeometry args={[0.24, 0.24, 0.24]} />
-            <meshStandardMaterial color={skinColor} roughness={0.65} />
-          </mesh>
-          <mesh position={[0, 0.11, -0.02]}>
-            <boxGeometry args={[0.26, 0.1, 0.26]} />
-            <meshStandardMaterial color={hairColor} roughness={0.85} />
-          </mesh>
-        </group>
       </group>
 
-      {/* Subtle Low-Poly Conversation Bubble when chatting in queue */}
-      {activity === 'chatting' && !isSitting && (
-        <group position={[0, 1.48, 0]}>
+      {isChatting && (
+        <group position={[0, 1.43, 0]}>
           <mesh>
             <boxGeometry args={[0.26, 0.13, 0.05]} />
             <meshBasicMaterial color={0xf8fafc} />
           </mesh>
-          <mesh position={[-0.06, 0, 0.03]}>
-            <boxGeometry args={[0.035, 0.035, 0.01]} />
-            <meshBasicMaterial color={0x0284c7} />
-          </mesh>
-          <mesh position={[0, 0, 0.03]}>
-            <boxGeometry args={[0.035, 0.035, 0.01]} />
-            <meshBasicMaterial color={0x0284c7} />
-          </mesh>
-          <mesh position={[0.06, 0, 0.03]}>
-            <boxGeometry args={[0.035, 0.035, 0.01]} />
-            <meshBasicMaterial color={0x0284c7} />
-          </mesh>
+          {[ -0.06, 0, 0.06 ].map((xPos) => (
+            <mesh key={xPos} position={[xPos, 0, 0.03]}>
+              <boxGeometry args={[0.035, 0.035, 0.01]} />
+              <meshBasicMaterial color={0x0284c7} />
+            </mesh>
+          ))}
         </group>
       )}
     </group>
@@ -244,21 +176,28 @@ export const StylizedPerson: React.FC<CharacterProps> = ({
 
 export const CustomerAvatar: React.FC<{ customer: CustomerEntity }> = React.memo(({ customer }) => {
   const isSitting = customer.state === 'sitting_playing';
+  const isWalking =
+    customer.state === 'entering' ||
+    customer.state === 'walking_to_pc' ||
+    customer.state === 'walking_to_cashier' ||
+    customer.state === 'leaving';
+
+  const mode: AnimationMode = isWalking
+    ? 'walk'
+    : customer.activity === 'drinking'
+      ? 'drink'
+      : isSitting
+        ? 'sit'
+        : 'idle';
 
   return (
-    <StylizedPerson
+    <KenneyPerson
       id={customer.id}
       x={customer.x}
       z={customer.z}
       facing={customer.facing}
-      shirtColor={customer.shirtColor}
-      pantsColor={customer.pantsColor}
-      hairColor={customer.hairColor}
-      skinColor={customer.skinColor}
-      walkDistance={customer.walkDistance}
-      isSitting={isSitting}
-      isWorking={false}
-      activity={customer.activity ?? 'idle'}
+      mode={mode}
+      isChatting={customer.activity === 'chatting' && !isSitting}
     />
   );
 }, (prev, next) => {
@@ -266,35 +205,28 @@ export const CustomerAvatar: React.FC<{ customer: CustomerEntity }> = React.memo
   const b = next.customer;
   return a.id === b.id &&
     a.x === b.x && a.z === b.z && a.facing === b.facing &&
-    a.shirtColor === b.shirtColor && a.pantsColor === b.pantsColor &&
-    a.hairColor === b.hairColor && a.skinColor === b.skinColor &&
-    a.walkDistance === b.walkDistance && a.state === b.state &&
-    a.activity === b.activity;
+    a.state === b.state && a.activity === b.activity;
 });
 
 export const StaffAvatar: React.FC<{ staff: StaffMember }> = React.memo(({ staff }) => {
-  const roleColors: Record<StaffMember['role'], { shirt: number; badge: number }> = {
-    cashier: { shirt: 0xf59e0b, badge: 0x1e293b },
-    technician: { shirt: 0x0ea5e9, badge: 0xfbbf24 },
-    cleaner: { shirt: 0x10b981, badge: 0xffffff },
-    security: { shirt: 0x1e293b, badge: 0x38bdf8 },
+  const roleColors: Record<StaffMember['role'], number> = {
+    cashier: 0xf59e0b,
+    technician: 0x0ea5e9,
+    cleaner: 0x10b981,
+    security: 0x38bdf8,
   };
-  const pal = roleColors[staff.role];
+
+  const mode: AnimationMode =
+    staff.state === 'walking' ? 'walk' : staff.state === 'working' ? 'work' : 'idle';
 
   return (
-    <StylizedPerson
+    <KenneyPerson
       id={staff.id}
       x={staff.x}
       z={staff.z}
       facing={staff.facing}
-      shirtColor={pal.shirt}
-      pantsColor={0x0f172a}
-      hairColor={0x18181b}
-      skinColor={0xd9a077}
-      walkDistance={staff.walkDistance}
-      isSitting={false}
-      isWorking={staff.state === 'working'}
-      accentBadgeColor={pal.badge}
+      mode={mode}
+      accentBadgeColor={roleColors[staff.role]}
     />
   );
 }, (prev, next) => {
@@ -302,6 +234,5 @@ export const StaffAvatar: React.FC<{ staff: StaffMember }> = React.memo(({ staff
   const b = next.staff;
   return a.id === b.id &&
     a.role === b.role && a.x === b.x && a.z === b.z &&
-    a.facing === b.facing && a.walkDistance === b.walkDistance &&
-    a.state === b.state;
+    a.facing === b.facing && a.state === b.state;
 });
