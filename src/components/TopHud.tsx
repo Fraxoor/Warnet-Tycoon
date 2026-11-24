@@ -39,6 +39,9 @@ export const TopHud: React.FC = () => {
   const occupiedCount = sim.objects.filter(
     (o) => o.computer && o.computer.occupiedByCustomerId !== null,
   ).length;
+  const waitingCount = sim.customers.filter((customer) => customer.state === 'walking_to_cashier').length;
+  const payingCount = sim.customers.filter((customer) => customer.state === 'paying').length;
+  const cashierCount = sim.staff.filter((member) => member.role === 'cashier').length;
   const dailyNet = sumRevenue(sim.todayRevenue) - sumExpenses(sim.todayExpenses);
   const stageDef = PROGRESSION_STAGES.find((p) => p.id === sim.stage);
   const peakActive = isPeakHour(sim.minuteOfDay);
@@ -100,6 +103,19 @@ export const TopHud: React.FC = () => {
           </div>
           <div className="text-sm md:text-base font-bold text-slate-100 font-mono-num">
             {occupiedCount}/{pcCount} PCs · {sim.customers.length} Inside
+          </div>
+        </div>
+
+        <div className="h-7 w-px bg-white/10 hidden md:block" />
+
+        <div data-testid="hud-queue" title="Customers waiting and currently being served">
+          <div className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">
+            Cashier Queue
+          </div>
+          <div className="text-sm font-bold text-slate-100 font-mono-num">
+            <span className={waitingCount > 5 ? 'text-amber-300' : 'text-emerald-300'}>{waitingCount} waiting</span>
+            <span className="text-slate-500"> · </span>
+            <span className="text-sky-300">{payingCount}/{Math.max(1, cashierCount)} serving</span>
           </div>
         </div>
 
