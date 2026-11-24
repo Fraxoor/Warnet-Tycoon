@@ -1407,14 +1407,17 @@ export function stepSimulation(
   const counterObj = nextObjects.find((o) => o.type === 'cashier_counter');
   const cashierFront = counterObj ? getChairAccessTile(counterObj) : ENTRANCE_DOOR_POS;
   const counterFwd = counterObj ? getRotationForwardVector(counterObj.rotation) : { dx: 0, dz: 1 };
-  const anyonePayingNow = nextCustomers.some((c) => c.state === 'paying');
+  // Each cashier can process one customer at a time. With no hired cashier,
+  // the owner-operated counter still processes one customer as a baseline.
+  const serviceCapacity = Math.max(1, Math.min(cashierCount, 4));
+  const payingCount = nextCustomers.filter((c) => c.state === 'paying').length;
   const queuingCustomers = nextCustomers
     .filter((c) => c.state === 'walking_to_cashier')
     .sort((a, b) => Math.hypot(a.x - cashierFront.x, a.z - cashierFront.z) - Math.hypot(b.x - cashierFront.x, b.z - cashierFront.z));
 
   const queueOrderMap = new Map<string, number>();
   queuingCustomers.forEach((c, idx) => {
-    queueOrderMap.set(c.id, idx + (anyonePayingNow ? 1 : 0));
+    queueOrderMap.set(c.id, idx + payingCount);
   });
 
   // 2. Update Customers
@@ -1544,20 +1547,32 @@ export function stepSimulation(
       const qIdx = queueOrderMap.get(cust.id) ?? 0;
       cust.queueIndex = qIdx;
 
-      if (qIdx === 0) {
-        const arrived = moveAlongPath(cust, walkSpeed, simDt);
-        if (arrived) {
+      if (qIdx < serviceCapacity) {
+        // Multiple cashiers can serve customers concurrently at the same counter.
+        // Spread customers across small service spots to avoid stacking avatars.
+        const lane = qIdx;
+        const sideX = -counterFwd.dz;
+        const sideZ = counterFwd.dx;
+        const slotX = cashierFront.x + sideX * ((lane - (serviceCapacity - 1) / 2) * 0.48);
+        const slotZ = cashierFront.z + sideZ * ((lane - (serviceCapacity - 1) / 2) * 0.48);
+        const distToSlot = Math.hypot(slotX - cust.x, slotZ - cust.z);
+        if (distToSlot > 0.16) {
+          const step = Math.min(distToSlot, walkSpeed * simDt);
+          cust.x += ((slotX - cust.x) / distToSlot) * step;
+          cust.z += ((slotZ - cust.z) / distToSlot) * step;
+          cust.walkDistance += step;
+          cust.facing = Math.atan2(cashierFront.x - cust.x, cashierFront.z - cust.z);
+        } else {
           cust.state = 'paying';
           cust.activity = 'idle';
           cust.payTimer = 0.7 / cashierSpeedBonus;
-          if (counterObj) {
-            cust.facing = Math.atan2(counterObj.x - cust.x, counterObj.z - cust.z);
-          }
+          if (counterObj) cust.facing = Math.atan2(counterObj.x - cust.x, counterObj.z - cust.z);
         }
       } else {
-        // Stagger behind cashier front along aisle so customers visibly line up
-        const slotX = cashierFront.x + counterFwd.dx * Math.min(2.2, qIdx * 0.72);
-        const slotZ = cashierFront.z + counterFwd.dz * Math.min(2.2, qIdx * 0.72);
+        const lineIndex = qIdx - serviceCapacity + 1;
+        // Stagger the waiting line behind the active service spots.
+        const slotX = cashierFront.x + counterFwd.dx * Math.min(2.2, lineIndex * 0.72);
+        const slotZ = cashierFront.z + counterFwd.dz * Math.min(2.2, lineIndex * 0.72);
         const distToSlot = Math.hypot(slotX - cust.x, slotZ - cust.z);
         if (distToSlot > 0.35 && cust.path.length > 1) {
           moveAlongPath(cust, walkSpeed, simDt);
@@ -1572,9 +1587,7 @@ export function stepSimulation(
           cust.activity = 'idle';
         } else {
           // Waiting in queue — chat with adjacent customer if close
-          if (counterObj) {
-            cust.facing = Math.atan2(counterObj.x - cust.x, counterObj.z - cust.z);
-          }
+          if (counterObj) cust.facing = Math.atan2(counterObj.x - cust.x, counterObj.z - cust.z);
           const neighbor = nextCustomers.find(
             (other) =>
               other.id !== cust.id &&
