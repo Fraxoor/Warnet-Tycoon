@@ -1,8 +1,50 @@
 import React, { useMemo } from 'react';
 import * as THREE from 'three';
+import { useGLTF } from '@react-three/drei';
 import type { PcTier, PlacedObject } from '../../types/game';
 import { getTileElevation } from '../../simulation/grid';
 import { createScreenTexture } from '../textures';
+
+const KENNEY_CDN = 'https://cdn.jsdelivr.net/gh/Hidencod/tge-assets@main/packs/furniture-kit/';
+
+function KenneyProp({
+  asset,
+  position = [0, 0, 0],
+  size,
+}: {
+  asset: string;
+  position?: [number, number, number];
+  size: [number, number, number];
+}) {
+  const { scene } = useGLTF(`${KENNEY_CDN}${asset}.glb`);
+  const model = useMemo(() => {
+    const clone = scene.clone(true);
+    const bounds = new THREE.Box3().setFromObject(clone);
+    const dimensions = bounds.getSize(new THREE.Vector3());
+    const center = bounds.getCenter(new THREE.Vector3());
+    const factors = [
+      dimensions.x > 0 ? size[0] / dimensions.x : Number.POSITIVE_INFINITY,
+      dimensions.y > 0 ? size[1] / dimensions.y : Number.POSITIVE_INFINITY,
+      dimensions.z > 0 ? size[2] / dimensions.z : Number.POSITIVE_INFINITY,
+    ];
+    const scale = Math.min(...factors);
+    clone.scale.setScalar(scale);
+    clone.position.set(-center.x * scale, -bounds.min.y * scale, -center.z * scale);
+    clone.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) {
+        (child as THREE.Mesh).castShadow = false;
+        (child as THREE.Mesh).receiveShadow = false;
+      }
+    });
+    return clone;
+  }, [scene, size[0], size[1], size[2]]);
+
+  return (
+    <group position={position}>
+      <primitive object={model} />
+    </group>
+  );
+}
 
 interface FurnitureMeshProps {
   obj: PlacedObject;
@@ -361,15 +403,19 @@ export const FurnitureModel: React.FC<FurnitureMeshProps> = React.memo(
               </group>
             )}
 
-            {obj.hasChair && <ChairModel style={obj.chairStyle ?? 'plastic'} />}
+            {obj.hasChair && <KenneyProp asset="chairdesk" position={[0, 0, 0.4]} size={[0.68, 1.12, 0.72]} />}
 
             {obj.computer && (
-              <ComputerRigModel
-                tier={obj.computer.tier}
-                occupied={obj.computer.occupiedByCustomerId !== null}
-                broken={obj.computer.isBroken}
-                powerOutage={powerOutage}
-              />
+              <>
+                <ComputerRigModel
+                  tier={obj.computer.tier}
+                  occupied={obj.computer.occupiedByCustomerId !== null}
+                  broken={obj.computer.isBroken}
+                  powerOutage={powerOutage}
+                />
+                <KenneyProp asset="computerkeyboard" position={[-0.1, 0.755, 0.2]} size={[0.38, 0.09, 0.16]} />
+                <KenneyProp asset="computermouse" position={[0.19, 0.755, 0.2]} size={[0.09, 0.07, 0.12]} />
+              </>
             )}
 
             {obj.computer?.isBroken && (
@@ -382,10 +428,9 @@ export const FurnitureModel: React.FC<FurnitureMeshProps> = React.memo(
         );
       }
 
-      if (obj.type === 'plastic_stool') return <ChairModel style="plastic" />;
-      if (obj.type === 'office_chair') return <ChairModel style="office" />;
-      if (obj.type === 'gaming_chair') return <ChairModel style="gaming" />;
-      if (obj.type === 'esports_chair_pro') return <ChairModel style="pro" />;
+      if (['plastic_stool', 'office_chair', 'gaming_chair', 'esports_chair_pro'].includes(obj.type)) {
+        return <KenneyProp asset="chairdesk" position={[0, 0, 0.08]} size={[0.68, 1.12, 0.72]} />;
+      }
 
       if (obj.type === 'cashier_counter') {
         return (
@@ -564,55 +609,15 @@ export const FurnitureModel: React.FC<FurnitureMeshProps> = React.memo(
       }
 
       if (obj.type === 'trash_bin') {
-        return (
-          <group>
-            <mesh position={[0, 0.24, 0]} material={METAL_MAT} castShadow>
-              <cylinderGeometry args={[0.19, 0.16, 0.48, 12]} />
-            </mesh>
-            <mesh position={[0, 0.49, 0]} material={DARK_CASE}>
-              <cylinderGeometry args={[0.2, 0.2, 0.05, 12]} />
-            </mesh>
-            <mesh position={[0, 0.36, 0.175]}>
-              <boxGeometry args={[0.14, 0.08, 0.02]} />
-              <meshBasicMaterial color={0x10b981} />
-            </mesh>
-          </group>
-        );
+        return <KenneyProp asset="trashcan" size={[0.55, 0.72, 0.55]} />;
       }
 
       if (obj.type === 'waiting_bench') {
-        return (
-          <group>
-            <mesh position={[-0.32, 0.22, 0]} material={METAL_MAT}>
-              <boxGeometry args={[0.06, 0.44, 0.38]} />
-            </mesh>
-            <mesh position={[0.32, 0.22, 0]} material={METAL_MAT}>
-              <boxGeometry args={[0.06, 0.44, 0.38]} />
-            </mesh>
-            <mesh position={[0, 0.45, 0]} material={WOOD_MAT} castShadow>
-              <boxGeometry args={[0.88, 0.07, 0.44]} />
-            </mesh>
-          </group>
-        );
+        return <KenneyProp asset="bench" size={[1.0, 0.72, 0.55]} />;
       }
 
       if (obj.type === 'plant') {
-        return (
-          <group>
-            <mesh position={[0, 0.2, 0]} castShadow>
-              <cylinderGeometry args={[0.2, 0.14, 0.4, 10]} />
-              <meshStandardMaterial color={0xb45309} roughness={0.8} />
-            </mesh>
-            <mesh position={[0, 0.58, 0]} castShadow>
-              <dodecahedronGeometry args={[0.26, 0]} />
-              <meshStandardMaterial color={0x15803d} roughness={0.75} />
-            </mesh>
-            <mesh position={[0.1, 0.72, -0.05]}>
-              <dodecahedronGeometry args={[0.18, 0]} />
-              <meshStandardMaterial color={0x16a34a} roughness={0.75} />
-            </mesh>
-          </group>
-        );
+        return <KenneyProp asset="pottedplant" size={[0.72, 1.05, 0.72]} />;
       }
 
       if (obj.type === 'neon_poster') {
