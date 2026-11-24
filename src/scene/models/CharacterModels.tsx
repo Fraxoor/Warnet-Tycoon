@@ -261,6 +261,15 @@ export const CustomerAvatar: React.FC<{ customer: CustomerEntity }> = React.memo
       activity={customer.activity ?? 'idle'}
     />
   );
+}, (prev, next) => {
+  const a = prev.customer;
+  const b = next.customer;
+  return a.id === b.id &&
+    a.x === b.x && a.z === b.z && a.facing === b.facing &&
+    a.shirtColor === b.shirtColor && a.pantsColor === b.pantsColor &&
+    a.hairColor === b.hairColor && a.skinColor === b.skinColor &&
+    a.walkDistance === b.walkDistance && a.state === b.state &&
+    a.activity === b.activity;
 });
 
 export const StaffAvatar: React.FC<{ staff: StaffMember }> = React.memo(({ staff }) => {
@@ -288,4 +297,11 @@ export const StaffAvatar: React.FC<{ staff: StaffMember }> = React.memo(({ staff
       accentBadgeColor={pal.badge}
     />
   );
+}, (prev, next) => {
+  const a = prev.staff;
+  const b = next.staff;
+  return a.id === b.id &&
+    a.role === b.role && a.x === b.x && a.z === b.z &&
+    a.facing === b.facing && a.walkDistance === b.walkDistance &&
+    a.state === b.state;
 });
