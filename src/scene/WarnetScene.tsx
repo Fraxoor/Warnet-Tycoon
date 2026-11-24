@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
@@ -66,6 +66,14 @@ function SceneController({ isSoftwareGl }: { isSoftwareGl: boolean }) {
   const selectBuildItem = useGameStore((s) => s.selectBuildItem);
 
   const [hoverTile, setHoverTile] = useState<{ x: number; z: number } | null>(null);
+  const simAccumulatorRef = useRef(0);
+  const handleObjectSelect = useCallback((id: string) => {
+    const state = useGameStore.getState();
+    const object = state.sim.objects.find((item) => item.id === id);
+    if (!object) return;
+    if (state.buildItem) state.placeAtTile(object.x, object.z);
+    else state.setSelectedObjectId(id);
+  }, []);
 
   // Setup RoomEnvironment PBR studio IBL once
   useEffect(() => {
@@ -246,7 +254,12 @@ function SceneController({ isSoftwareGl }: { isSoftwareGl: boolean }) {
       controlsRef.current.update();
     }
 
-    tick(dt);
+    simAccumulatorRef.current += dt;
+    if (simAccumulatorRef.current >= 1 / 15) {
+      const simDt = Math.min(simAccumulatorRef.current, 0.25);
+      simAccumulatorRef.current = 0;
+      tick(simDt);
+    }
   });
 
   const placementPreview = useMemo(() => {
@@ -274,7 +287,7 @@ function SceneController({ isSoftwareGl }: { isSoftwareGl: boolean }) {
         ref={dirLightRef}
         position={[14, 22, 12]}
         intensity={1.3}
-        castShadow={!isSoftwareGl}
+        castShadow={false}
         shadow-mapSize={[1024, 1024]}
         shadow-camera-left={-14}
         shadow-camera-right={14}
@@ -348,13 +361,7 @@ function SceneController({ isSoftwareGl }: { isSoftwareGl: boolean }) {
           obj={obj}
           isSelected={selectedObjectId === obj.id}
           powerOutage={powerOutage}
-          onSelect={(id) => {
-            if (buildItem) {
-              placeAtTile(obj.x, obj.z);
-            } else {
-              setSelectedObjectId(id);
-            }
-          }}
+          onSelect={handleObjectSelect}
         />
       ))}
 
@@ -414,11 +421,11 @@ export const WarnetScene: React.FC = () => {
       ) : (
         <Canvas
           frameloop={IS_SOFTWARE_GL ? 'never' : 'always'}
-          shadows={!IS_SOFTWARE_GL}
-          dpr={IS_SOFTWARE_GL ? 1 : [1, 1.5]}
+          shadows={false}
+          dpr={1}
           camera={{ position: [14.8, 13.6, 15.8], fov: 34, near: 0.5, far: 120 }}
           gl={{
-            antialias: !IS_SOFTWARE_GL,
+            antialias: false,
             preserveDrawingBuffer: IS_SOFTWARE_GL,
             powerPreference: 'high-performance',
             toneMapping: THREE.ACESFilmicToneMapping,
