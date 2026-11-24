@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { useAnimations, useGLTF } from '@react-three/drei';
-import { SkeletonUtils } from 'three/addons/utils/SkeletonUtils.js';
+import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import type { CustomerEntity, StaffMember } from '../../types/game';
 import { getTileElevation } from '../../simulation/grid';
 import { createContactShadowTexture } from '../textures';
@@ -79,7 +79,7 @@ const KenneyPerson: React.FC<KenneyPersonProps> = ({
   };
 
   const normalizedModel = useMemo(() => {
-    const model = SkeletonUtils.clone(gltf.scene) as THREE.Group;
+    const model = cloneSkeleton(gltf.scene) as THREE.Group;
     model.traverse((child) => {
       if (child instanceof THREE.Mesh) {
         child.castShadow = false;
