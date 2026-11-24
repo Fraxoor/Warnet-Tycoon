@@ -415,7 +415,7 @@ export const WarnetScene: React.FC = () => {
         <Canvas
           frameloop={IS_SOFTWARE_GL ? 'never' : 'always'}
           shadows={!IS_SOFTWARE_GL}
-          dpr={IS_SOFTWARE_GL ? 1 : [1, 2]}
+          dpr={IS_SOFTWARE_GL ? 1 : [1, 1.5]}
           camera={{ position: [14.8, 13.6, 15.8], fov: 34, near: 0.5, far: 120 }}
           gl={{
             antialias: !IS_SOFTWARE_GL,
