@@ -1439,12 +1439,9 @@ export function stepSimulation(
         cust.activity = 'typing';
         cust.activityTimer = 2.4 + rng() * 2.2;
         const fwd = getRotationForwardVector(targetObj.rotation);
-        const seatDist =
-          targetObj.chairStyle === 'pro' || targetObj.chairStyle === 'gaming'
-            ? 0.42
-            : targetObj.chairStyle === 'office'
-              ? 0.4
-              : 0.38;
+        // FurnitureModel places every chair seat at local +Z * 0.4.
+        // Keep the NPC root exactly on that seat anchor for all chair styles.
+        const seatDist = 0.4;
         cust.x = targetObj.x + fwd.dx * seatDist;
         cust.z = targetObj.z + fwd.dz * seatDist;
         cust.facing = Math.atan2(-fwd.dx, -fwd.dz);
