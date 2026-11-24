@@ -10,10 +10,12 @@ const KENNEY_CDN = 'https://cdn.jsdelivr.net/gh/Hidencod/tge-assets@main/packs/f
 function KenneyProp({
   asset,
   position = [0, 0, 0],
+  rotationY = 0,
   size,
 }: {
   asset: string;
   position?: [number, number, number];
+  rotationY?: number;
   size: [number, number, number];
 }) {
   const { scene } = useGLTF(`${KENNEY_CDN}${asset}.glb`);
@@ -40,7 +42,7 @@ function KenneyProp({
   }, [scene, size[0], size[1], size[2]]);
 
   return (
-    <group position={position}>
+    <group position={position} rotation={[0, rotationY, 0]}>
       <primitive object={model} />
     </group>
   );
@@ -403,7 +405,14 @@ export const FurnitureModel: React.FC<FurnitureMeshProps> = React.memo(
               </group>
             )}
 
-            {obj.hasChair && <KenneyProp asset="chairdesk" position={[0, 0, 0.4]} size={[0.68, 1.12, 0.72]} />}
+            {obj.hasChair && (
+              <KenneyProp
+                asset="chairmoderncushion"
+                position={[0, 0, 0.4]}
+                rotationY={Math.PI}
+                size={[0.62, 0.95, 0.62]}
+              />
+            )}
 
             {obj.computer && (
               <>
@@ -428,8 +437,18 @@ export const FurnitureModel: React.FC<FurnitureMeshProps> = React.memo(
         );
       }
 
-      if (['plastic_stool', 'office_chair', 'gaming_chair', 'esports_chair_pro'].includes(obj.type)) {
-        return <KenneyProp asset="chairdesk" position={[0, 0, 0.08]} size={[0.68, 1.12, 0.72]} />;
+      if (obj.type === 'plastic_stool') {
+        return <KenneyProp asset="chair" position={[0, 0, 0]} size={[0.58, 0.78, 0.58]} />;
+      }
+      if (['office_chair', 'gaming_chair', 'esports_chair_pro'].includes(obj.type)) {
+        return (
+          <KenneyProp
+            asset="chairmoderncushion"
+            position={[0, 0, 0]}
+            rotationY={Math.PI}
+            size={[0.62, 0.95, 0.62]}
+          />
+        );
       }
 
       if (obj.type === 'cashier_counter') {
