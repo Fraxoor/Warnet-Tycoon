@@ -18,7 +18,7 @@ const _rainDummy = new THREE.Object3D();
 
 const MOTOR_COLORS = [0x0284c7, 0xdc2626, 0x10b981];
 const HELMET_COLORS = [0xf8fafc, 0x1e293b, 0xf59e0b];
-const CAR_BASE = 'https://cdn.jsdelivr.net/gh/Hidencod/tge-assets@main/packs/car-kit/';
+const CAR_BASE = 'https://raw.githubusercontent.com/Hidencod/tge-assets/main/packs/car-kit/';
 
 type KenneyCarModel = 'sedan' | 'hatchback-sports' | 'suv' | 'taxi' | 'van';
 
