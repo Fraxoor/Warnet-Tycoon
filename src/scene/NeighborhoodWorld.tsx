@@ -380,6 +380,20 @@ export const NeighborhoodWorld: React.FC<NeighborhoodWorldProps> = ({
         </group>
       ))}
 
+      {/* Kenney Car Kit traffic */}
+      {carData.map((cfg, i) => (
+        <group
+          key={`kenney_car_${i}`}
+          ref={(el) => {
+            carRefs.current[i] = el;
+          }}
+          position={[0, 0, cfg.laneZ]}
+          rotation={[0, cfg.dir > 0 ? Math.PI / 2 : -Math.PI / 2, 0]}
+        >
+          <KenneyTrafficCar model={cfg.model} />
+        </group>
+      ))}
+
       {/* Kenney Mini Characters strolling on the sidewalk */}
       {pedData.map((cfg, i) => (
         <group
