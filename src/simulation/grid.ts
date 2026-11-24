@@ -173,7 +173,8 @@ export function canStepBetweenTiles(
 }
 
 /**
- * Lightweight BFS grid pathfinder for smooth NPC navigation around desks and walls.
+ * Bounded, allocation-light BFS for NPC navigation.
+ * The playable map plus sidewalk fits inside this fixed search window.
  */
 export function findGridPath(
   start: GridPoint,
@@ -186,59 +187,92 @@ export function findGridPath(
   const gx = Math.round(goal.x);
   const gz = Math.round(goal.z);
 
-  if (sx === gx && sz === gz) {
+  if (sx === gx && sz === gz) return [{ x: gx, z: gz }];
+
+  // Include the full building footprint, stairs, and public sidewalk.
+  const minX = -1;
+  const maxX = 19;
+  const minZ = -8;
+  const maxZ = 11;
+  const width = maxX - minX + 1;
+  const height = maxZ - minZ + 1;
+  const cellCount = width * height;
+  const toIndex = (x: number, z: number) => (z - minZ) * width + (x - minX);
+
+  if (
+    sx < minX || sx > maxX || sz < minZ || sz > maxZ ||
+    gx < minX || gx > maxX || gz < minZ || gz > maxZ
+  ) {
     return [{ x: gx, z: gz }];
   }
 
-  const key = (x: number, z: number) => `${x},${z}`;
-  const queue: GridPoint[] = [{ x: sx, z: sz }];
-  const cameFrom = new Map<string, GridPoint | null>();
-  cameFrom.set(key(sx, sz), null);
-
-  const dirs = [
-    { x: 1, z: 0 },
-    { x: -1, z: 0 },
-    { x: 0, z: 1 },
-    { x: 0, z: -1 },
-  ];
-
-  let found = false;
-  let iterations = 0;
-
-  while (queue.length > 0 && iterations < 2000) {
-    iterations++;
-    const curr = queue.shift()!;
-    if (curr.x === gx && curr.z === gz) {
-      found = true;
-      break;
+  // Build the walkability map once instead of scanning every placed object
+  // for every neighbor visited by BFS.
+  const blocked = new Set<number>();
+  for (const object of objects) {
+    if (CATALOG_ITEMS[object.type].blocksWalk &&
+        object.x >= minX && object.x <= maxX &&
+        object.z >= minZ && object.z <= maxZ) {
+      blocked.add(toIndex(object.x, object.z));
     }
+  }
 
-    for (const d of dirs) {
-      const nx = curr.x + d.x;
-      const nz = curr.z + d.z;
-      if (!canStepBetweenTiles(curr.x, curr.z, nx, nz)) continue;
-
-      const k = key(nx, nz);
-      if (cameFrom.has(k)) continue;
-
-      const isGoal = nx === gx && nz === gz;
-      if (isGoal || isTileWalkable(nx, nz, unlockedRooms, objects)) {
-        cameFrom.set(k, curr);
-        queue.push({ x: nx, z: nz });
+  const walkable = new Uint8Array(cellCount);
+  for (let z = minZ; z <= maxZ; z++) {
+    for (let x = minX; x <= maxX; x++) {
+      const index = toIndex(x, z);
+      const sidewalk = z >= 8 && z <= 11 && x >= -1 && x <= 16;
+      if (sidewalk || (isTileUnlocked(x, z, unlockedRooms) && !blocked.has(index))) {
+        walkable[index] = 1;
       }
     }
   }
 
-  if (!found) {
-    // Fallback direct waypoint so NPCs never get permanently stuck
-    return [{ x: gx, z: gz }];
+  const startIndex = toIndex(sx, sz);
+  const goalIndex = toIndex(gx, gz);
+  const parents = new Int32Array(cellCount);
+  parents.fill(-2);
+  parents[startIndex] = -1;
+
+  // Fixed-size integer queue avoids Array.shift() and string-keyed Maps.
+  const queue = new Int16Array(cellCount);
+  let head = 0;
+  let tail = 0;
+  queue[tail++] = startIndex;
+
+  const dx = [1, -1, 0, 0];
+  const dz = [0, 0, 1, -1];
+
+  while (head < tail && parents[goalIndex] === -2) {
+    const current = queue[head++];
+    const cx = (current % width) + minX;
+    const cz = Math.floor(current / width) + minZ;
+
+    for (let direction = 0; direction < 4; direction++) {
+      const nx = cx + dx[direction];
+      const nz = cz + dz[direction];
+      if (nx < minX || nx > maxX || nz < minZ || nz > maxZ) continue;
+      if (!canStepBetweenTiles(cx, cz, nx, nz)) continue;
+
+      const next = toIndex(nx, nz);
+      if (parents[next] !== -2) continue;
+      if (next !== goalIndex && walkable[next] === 0) continue;
+
+      parents[next] = current;
+      queue[tail++] = next;
+      if (next === goalIndex) break;
+    }
   }
 
+  // No route: return no waypoints rather than sending NPCs through obstacles.
+  if (parents[goalIndex] === -2) return [];
+
   const path: GridPoint[] = [];
-  let trace: GridPoint | null = { x: gx, z: gz };
-  while (trace && !(trace.x === sx && trace.z === sz)) {
-    path.push(trace);
-    trace = cameFrom.get(key(trace.x, trace.z)) ?? null;
+  for (let index = goalIndex; index !== startIndex; index = parents[index]) {
+    path.push({
+      x: (index % width) + minX,
+      z: Math.floor(index / width) + minZ,
+    });
   }
   path.reverse();
   return path;
