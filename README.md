@@ -389,9 +389,11 @@ Selected interior props use models from **Kenney's Furniture Kit**:
 - Desk chair, computer keyboard, computer mouse
 - Waiting bench, potted plant, and trash can
 
-The pack is published by [Kenney](https://kenney.nl/assets/furniture-kit) under **Creative Commons CC0**. Attribution is not required; this project credits the source as a courtesy. Runtime GLB files are served from the [Kenney asset mirror](https://github.com/Hidencod/tge-assets), which catalogs the pack as Kenney / CC0-1.0.
+NPCs use rigged character models and animation clips from **Kenney's Mini Characters**. Twelve character variants are selected deterministically for customers and staff; staff roles retain a small color-coded identifier.
 
-The models are loaded on demand through jsDelivr, so the first load of a model requires an internet connection. The game's existing procedural PC screens, lighting states, and simulation behavior remain intact.
+Both packs are published by [Kenney](https://kenney.nl/assets/furniture-kit) and [Kenney Mini Characters](https://kenney.nl/assets/mini-characters) under **Creative Commons CC0**. Attribution is not required; this project credits the source as a courtesy. Runtime GLB files are served from the [Kenney asset mirror](https://github.com/Hidencod/tge-assets), which catalogs the packs as Kenney / CC0-1.0.
+
+The models are loaded on demand through jsDelivr, so the first load of each character variant requires an internet connection.
 
 ## 📄 License
 
