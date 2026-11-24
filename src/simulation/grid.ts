@@ -264,11 +264,26 @@ export function findGridPath(
     }
   }
 
-  // No route: return no waypoints rather than sending NPCs through obstacles.
-  if (parents[goalIndex] === -2) return [];
+  // If the exact goal is unreachable, route to the closest reachable tile.
+  // This prevents the old fallback from walking NPCs straight through furniture.
+  let destinationIndex = goalIndex;
+  if (parents[goalIndex] === -2) {
+    let bestDistance = Number.POSITIVE_INFINITY;
+    destinationIndex = startIndex;
+    for (let index = 0; index < cellCount; index++) {
+      if (parents[index] === -2) continue;
+      const x = (index % width) + minX;
+      const z = Math.floor(index / width) + minZ;
+      const distance = Math.abs(x - gx) + Math.abs(z - gz);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        destinationIndex = index;
+      }
+    }
+  }
 
   const path: GridPoint[] = [];
-  for (let index = goalIndex; index !== startIndex; index = parents[index]) {
+  for (let index = destinationIndex; index !== startIndex; index = parents[index]) {
     path.push({
       x: (index % width) + minX,
       z: Math.floor(index / width) + minZ,
