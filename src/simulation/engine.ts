@@ -1301,9 +1301,11 @@ export function stepSimulation(
     o.computer ? { ...o, computer: { ...o.computer } } : { ...o },
   );
 
-  const hasCashierStaff = state.staff.some((s) => s.role === 'cashier');
+  const cashierCount = state.staff.filter((s) => s.role === 'cashier').length;
+  const hasCashierStaff = cashierCount > 0;
   const hasSecurityStaff = state.staff.some((s) => s.role === 'security');
-  const cashierSpeedBonus = hasCashierStaff ? 1.85 : 1.0;
+  // Every cashier contributes to throughput; cap the bonus to avoid trivializing the queue.
+  const cashierSpeedBonus = 1 + Math.min(cashierCount, 6) * 0.85;
 
   // 1. Spawn new customers based on demand curve + loyalty + weather
   const hour = (nextMinute % 1440) / 60;
