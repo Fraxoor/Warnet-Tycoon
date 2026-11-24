@@ -695,4 +695,21 @@ export const FurnitureModel: React.FC<FurnitureMeshProps> = React.memo(
       </group>
     );
   },
+  (prev, next) => {
+    const a = prev.obj;
+    const b = next.obj;
+    return (
+      a.id === b.id &&
+      a.type === b.type &&
+      a.x === b.x &&
+      a.z === b.z &&
+      a.rotation === b.rotation &&
+      prev.isSelected === next.isSelected &&
+      prev.powerOutage === next.powerOutage &&
+      prev.onSelect === next.onSelect &&
+      a.computer?.tier === b.computer?.tier &&
+      a.computer?.occupiedByCustomerId === b.computer?.occupiedByCustomerId &&
+      a.computer?.isBroken === b.computer?.isBroken
+    );
+  },
 );
