@@ -174,6 +174,10 @@ const KenneyPerson: React.FC<KenneyPersonProps> = ({
   );
 };
 
+export const StreetPedestrian: React.FC<{ id: string; x: number; z: number; facing: number }> = ({ id, x, z, facing }) => (
+  <KenneyPerson id={id} x={x} z={z} facing={facing} mode="walk" />
+);
+
 export const CustomerAvatar: React.FC<{ customer: CustomerEntity }> = React.memo(({ customer }) => {
   const isSitting = customer.state === 'sitting_playing';
   const isWalking =
