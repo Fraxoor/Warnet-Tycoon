@@ -1,7 +1,10 @@
 import React, { useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
+import { useGLTF } from '@react-three/drei';
+import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import type { WeatherType } from '../types/game';
+import { StreetPedestrian } from './models/CharacterModels';
 
 interface NeighborhoodWorldProps {
   nightFactor: number;
@@ -15,7 +18,36 @@ const _rainDummy = new THREE.Object3D();
 
 const MOTOR_COLORS = [0x0284c7, 0xdc2626, 0x10b981];
 const HELMET_COLORS = [0xf8fafc, 0x1e293b, 0xf59e0b];
-const PED_SHIRTS = [0xf97316, 0x6366f1, 0x14b8a6];
+const CAR_BASE = 'https://cdn.jsdelivr.net/gh/Hidencod/tge-assets@main/packs/car-kit/';
+
+type KenneyCarModel = 'sedan' | 'hatchback-sports' | 'suv' | 'taxi' | 'van';
+
+const KenneyTrafficCar: React.FC<{ model: KenneyCarModel }> = ({ model }) => {
+  const gltf = useGLTF(`${CAR_BASE}${model}.glb`) as unknown as { scene: THREE.Group };
+  const normalized = useMemo(() => {
+    const scene = cloneSkeleton(gltf.scene) as THREE.Group;
+    scene.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        child.castShadow = false;
+        child.receiveShadow = false;
+      }
+    });
+    const bounds = new THREE.Box3().setFromObject(scene);
+    const size = new THREE.Vector3();
+    const center = new THREE.Vector3();
+    bounds.getSize(size);
+    bounds.getCenter(center);
+    scene.position.set(-center.x, -bounds.min.y, -center.z);
+    const footprint = Math.max(size.x, size.z, 0.001);
+    return { scene, scale: 2.45 / footprint };
+  }, [gltf.scene]);
+
+  return (
+    <group scale={normalized.scale}>
+      <primitive object={normalized.scene} />
+    </group>
+  );
+};
 
 export const NeighborhoodWorld: React.FC<NeighborhoodWorldProps> = ({
   nightFactor,
@@ -24,9 +56,8 @@ export const NeighborhoodWorld: React.FC<NeighborhoodWorldProps> = ({
   isSoftwareGl,
 }) => {
   const motorRefs = useRef<Array<THREE.Group | null>>([]);
+  const carRefs = useRef<Array<THREE.Group | null>>([]);
   const pedRefs = useRef<Array<THREE.Group | null>>([]);
-  const pedLeftLegs = useRef<Array<THREE.Mesh | null>>([]);
-  const pedRightLegs = useRef<Array<THREE.Mesh | null>>([]);
   const rainMeshRef = useRef<THREE.InstancedMesh>(null);
 
   const rainSeeds = useMemo(
@@ -45,6 +76,16 @@ export const NeighborhoodWorld: React.FC<NeighborhoodWorldProps> = ({
       { laneZ: 10.15, dir: -1, speed: 5.4, offset: 0 },
       { laneZ: 12.15, dir: 1, speed: 6.2, offset: 14 },
       { laneZ: 10.25, dir: -1, speed: 4.6, offset: 21 },
+    ],
+    [],
+  );
+
+  const carData = useMemo(
+    () => [
+      { laneZ: 10.05, dir: -1, speed: 3.2, offset: 4, model: 'sedan' as const },
+      { laneZ: 12.25, dir: 1, speed: 3.6, offset: 17, model: 'hatchback-sports' as const },
+      { laneZ: 10.05, dir: -1, speed: 3.0, offset: 25, model: 'suv' as const },
+      { laneZ: 12.25, dir: 1, speed: 3.4, offset: 34, model: 'taxi' as const },
     ],
     [],
   );
@@ -77,7 +118,19 @@ export const NeighborhoodWorld: React.FC<NeighborhoodWorldProps> = ({
       m.position.y = Math.abs(Math.sin(t * 14 + i)) * 0.015;
     }
 
-    // 2. Sidewalk pedestrians strolling past storefronts
+    // 2. Kenney cars cruising along both road lanes
+    for (let i = 0; i < carData.length; i++) {
+      const car = carRefs.current[i];
+      if (!car) continue;
+      const cfg = carData[i];
+      const span = 38;
+      const raw = (t * cfg.speed + cfg.offset) % span;
+      car.position.x = cfg.dir > 0 ? -12 + raw : 26 - raw;
+      car.position.z = cfg.laneZ;
+      car.position.y = 0;
+    }
+
+    // 3. Sidewalk pedestrians strolling past storefronts
     for (let i = 0; i < pedData.length; i++) {
       const p = pedRefs.current[i];
       if (!p) continue;
@@ -86,15 +139,10 @@ export const NeighborhoodWorld: React.FC<NeighborhoodWorldProps> = ({
       const raw = (t * cfg.speed + cfg.offset) % span;
       p.position.x = cfg.dir > 0 ? -9 + raw : 23 - raw;
       p.position.z = cfg.z;
-      p.position.y = Math.abs(Math.sin(t * 6 + i)) * 0.025;
-      const swing = Math.sin(t * 6 + i) * 0.42;
-      const ll = pedLeftLegs.current[i];
-      const rl = pedRightLegs.current[i];
-      if (ll) ll.rotation.x = swing;
-      if (rl) rl.rotation.x = -swing;
+      p.position.y = Math.abs(Math.sin(t * 6 + i)) * 0.018;
     }
 
-    // 3. Instanced rain streaks (active only during rain)
+    // 4. Instanced rain streaks (active only during rain)
     if (weather === 'rain' && rainMeshRef.current) {
       for (let i = 0; i < RAIN_COUNT; i++) {
         const s = rainSeeds[i];
@@ -332,7 +380,7 @@ export const NeighborhoodWorld: React.FC<NeighborhoodWorldProps> = ({
         </group>
       ))}
 
-      {/* Animated Walking Sidewalk Pedestrians */}
+      {/* Kenney Mini Characters strolling on the sidewalk */}
       {pedData.map((cfg, i) => (
         <group
           key={`ped_${i}`}
@@ -342,33 +390,7 @@ export const NeighborhoodWorld: React.FC<NeighborhoodWorldProps> = ({
           position={[0, 0, cfg.z]}
           rotation={[0, cfg.dir > 0 ? Math.PI / 2 : -Math.PI / 2, 0]}
         >
-          <mesh
-            ref={(el) => {
-              pedLeftLegs.current[i] = el;
-            }}
-            position={[-0.07, 0.26, 0]}
-          >
-            <boxGeometry args={[0.1, 0.4, 0.1]} />
-            <meshStandardMaterial color={0x1e293b} roughness={0.8} />
-          </mesh>
-          <mesh
-            ref={(el) => {
-              pedRightLegs.current[i] = el;
-            }}
-            position={[0.07, 0.26, 0]}
-          >
-            <boxGeometry args={[0.1, 0.4, 0.1]} />
-            <meshStandardMaterial color={0x1e293b} roughness={0.8} />
-          </mesh>
-          <mesh position={[0, 0.64, 0]} castShadow>
-            <boxGeometry args={[0.28, 0.4, 0.18]} />
-            <meshStandardMaterial color={PED_SHIRTS[i]} roughness={0.72} />
-          </mesh>
-          <mesh position={[0, 0.98, 0]} castShadow>
-            <boxGeometry args={[0.22, 0.22, 0.22]} />
-            <meshStandardMaterial color={0xd9a077} roughness={0.65} />
-          </mesh>
-          {/* Umbrella during rain */}
+          <StreetPedestrian id={`street-pedestrian-${i}`} x={0} z={0} facing={0} />
           {weather === 'rain' && (
             <group position={[0.12, 1.15, 0.08]}>
               <mesh position={[0, 0.16, 0]}>
