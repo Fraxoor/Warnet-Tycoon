@@ -7,7 +7,24 @@ import {
   type User,
 } from 'firebase/auth';
 import { doc, getDocFromServer, getFirestore } from 'firebase/firestore';
-import firebaseConfig from '../../firebase-applet-config.json';
+import localConfig from '../../firebase-applet-config.json';
+
+const firebaseConfig = {
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || localConfig.projectId || '',
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || localConfig.appId || '',
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || localConfig.apiKey || '',
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || localConfig.authDomain || '',
+  firestoreDatabaseId:
+    import.meta.env.VITE_FIREBASE_DATABASE_ID || localConfig.firestoreDatabaseId || '(default)',
+  storageBucket:
+    import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || localConfig.storageBucket || '',
+  messagingSenderId:
+    import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || localConfig.messagingSenderId || '',
+  measurementId: localConfig.measurementId || '',
+  oAuthClientId:
+    import.meta.env.VITE_FIREBASE_OAUTH_CLIENT_ID || localConfig.oAuthClientId || '',
+  recaptchaSiteKey: localConfig.recaptchaSiteKey || '',
+};
 
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
