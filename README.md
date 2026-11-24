@@ -383,6 +383,16 @@ Contributions, issues, and feature requests are welcome!
 
 ---
 
+## 🎨 3D Asset Credits
+
+Selected interior props use models from **Kenney's Furniture Kit**:
+- Desk chair, computer keyboard, computer mouse
+- Waiting bench, potted plant, and trash can
+
+The pack is published by [Kenney](https://kenney.nl/assets/furniture-kit) under **Creative Commons CC0**. Attribution is not required; this project credits the source as a courtesy. Runtime GLB files are served from the [Kenney asset mirror](https://github.com/Hidencod/tge-assets), which catalogs the pack as Kenney / CC0-1.0.
+
+The models are loaded on demand through jsDelivr, so the first load of a model requires an internet connection. The game's existing procedural PC screens, lighting states, and simulation behavior remain intact.
+
 ## 📄 License
 
 This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
