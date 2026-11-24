@@ -166,17 +166,17 @@ export const StylizedPerson: React.FC<CharacterProps> = ({
 
       <group ref={bodyRef} rotation={[0, facing, 0]}>
         {/* Legs */}
-        <mesh ref={leftLegRef} position={[-0.08, 0.28, 0]} castShadow>
+        <mesh ref={leftLegRef} position={[-0.08, 0.28, 0]}>
           <boxGeometry args={[0.11, 0.42, 0.12]} />
           <meshStandardMaterial color={pantsColor} roughness={0.8} />
         </mesh>
-        <mesh ref={rightLegRef} position={[0.08, 0.28, 0]} castShadow>
+        <mesh ref={rightLegRef} position={[0.08, 0.28, 0]}>
           <boxGeometry args={[0.11, 0.42, 0.12]} />
           <meshStandardMaterial color={pantsColor} roughness={0.8} />
         </mesh>
 
         {/* Torso / Shirt */}
-        <mesh position={[0, 0.68, 0]} castShadow>
+        <mesh position={[0, 0.68, 0]}>
           <boxGeometry args={[0.3, 0.42, 0.18]} />
           <meshStandardMaterial color={shirtColor} roughness={0.7} />
         </mesh>
@@ -189,11 +189,11 @@ export const StylizedPerson: React.FC<CharacterProps> = ({
         )}
 
         {/* Arms */}
-        <mesh ref={leftArmRef} position={[-0.2, 0.66, 0]} castShadow>
+        <mesh ref={leftArmRef} position={[-0.2, 0.66, 0]}>
           <boxGeometry args={[0.09, 0.36, 0.1]} />
           <meshStandardMaterial color={shirtColor} roughness={0.72} />
         </mesh>
-        <mesh ref={rightArmRef} position={[0.2, 0.66, 0]} castShadow>
+        <mesh ref={rightArmRef} position={[0.2, 0.66, 0]}>
           <boxGeometry args={[0.09, 0.36, 0.1]} />
           <meshStandardMaterial color={shirtColor} roughness={0.72} />
         </mesh>
@@ -206,7 +206,7 @@ export const StylizedPerson: React.FC<CharacterProps> = ({
 
         {/* Head & Hair */}
         <group ref={headRef} position={[0, 1.04, 0]}>
-          <mesh castShadow>
+          <mesh>
             <boxGeometry args={[0.24, 0.24, 0.24]} />
             <meshStandardMaterial color={skinColor} roughness={0.65} />
           </mesh>
