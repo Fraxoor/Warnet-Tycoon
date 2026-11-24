@@ -393,7 +393,7 @@ NPCs use rigged character models and animation clips from **Kenney's Mini Charac
 
 Both packs are published by [Kenney](https://kenney.nl/assets/furniture-kit) and [Kenney Mini Characters](https://kenney.nl/assets/mini-characters) under **Creative Commons CC0**. Attribution is not required; this project credits the source as a courtesy. Runtime GLB files are served from the [Kenney asset mirror](https://github.com/Hidencod/tge-assets), which catalogs the packs as Kenney / CC0-1.0.
 
-The models are loaded on demand through jsDelivr, so the first load of each character variant requires an internet connection.
+Character and vehicle models are loaded on demand through jsDelivr, so their first load requires an internet connection. Kenney's Car Kit does not include motorcycles; the existing Indonesian scooter traffic and parked scooters remain custom low-poly models.
 
 ## 📄 License
 
