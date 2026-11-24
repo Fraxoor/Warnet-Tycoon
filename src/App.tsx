@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import './debug/gameDebug';
 import { useGameStore } from './store/gameStore';
 import { WarnetScene } from './scene/WarnetScene';
 import { TitleScreen } from './components/TitleScreen';
